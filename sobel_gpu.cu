@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-
+#include <stdlib.h>
 // see https://en.wikipedia.org/wiki/Sobel_operator
 
 
@@ -27,7 +27,8 @@
 // this one is a 4x augmentation of the laughing zebra
 static char input_fname[] = "../data/zebra-gray-int8-4x";
 static int data_dims[2] = {7112, 5146}; // width=ncols, height=nrows
-char output_fname[] = "../data/processed-raw-int8-4x-cpu.dat";
+// char output_fname[] = "../data/processed-raw-int8-4x-cpu.dat";
+char output_fname[] = "../data/processed-raw-int8-4x-gpu.dat";
 
 // see https://stackoverflow.com/questions/14038589/what-is-the-canonical-way-to-check-for-errors-using-the-cuda-runtime-api
 // macro to check for cuda errors. basic idea: wrap this macro around every cuda call
@@ -63,6 +64,21 @@ sobel_filtered_pixel(float *s, int i, int j , int ncols, int nrows, float *gx, f
 
    // ADD CODE HERE:  add your code here for computing the sobel stencil computation at location (i,j)
    // of input s, returning a float
+   if (i < 1 || i >= nrows - 1 || j < 1 || j >= ncols - 1)
+      return t;
+
+   float sx = 0.0f, sy = 0.0f;
+   for (int di = -1; di <= 1; di++)
+   {
+      for (int dj = -1; dj <= 1; dj++)
+      {
+         float v = s[(i + di) * ncols + (j + dj)];
+         int k = (di + 1) * 3 + (dj + 1);
+         sx += gx[k] * v;
+         sy += gy[k] * v;
+      }
+   }
+   t = sqrtf(sx * sx + sy * sy);
 
    return t;
 }
@@ -92,7 +108,15 @@ sobel_kernel_gpu(float *s,  // source image pixels
 {
    // ADD CODE HERE: insert your code here that iterates over every (i,j) of input,  makes a call
    // to sobel_filtered_pixel, and assigns the resulting value at location (i,j) in the output.
+   int index  = blockIdx.x * blockDim.x + threadIdx.x;
+   int stride = blockDim.x * gridDim.x;
 
+   for (int idx = index; idx < n; idx += stride)
+   {
+      int i = idx / ncols;   // 行
+      int j = idx % ncols;   // 列
+      d[idx] = sobel_filtered_pixel(s, i, j, ncols, nrows, gx, gy);
+   }
    // because this is CUDA, you need to use CUDA built-in variables to compute an index and stride
    // your processing motif will be very similar here to that we used for vector add in Lab #2
 }
@@ -157,7 +181,8 @@ main (int ac, char *av[])
    int nBlocks=1, nThreadsPerBlock=256;
 
    // ADD CODE HERE: insert your code here to set a different number of thread blocks or # of threads per block
-
+   if (ac >= 2) nBlocks = atoi(av[1]);
+   if (ac >= 3) nThreadsPerBlock = atoi(av[2]);
 
 
    printf(" GPU configuration: %d blocks, %d threads per block \n", nBlocks, nThreadsPerBlock);

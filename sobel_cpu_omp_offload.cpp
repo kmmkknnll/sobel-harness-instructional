@@ -25,8 +25,8 @@
 // this one is a 4x augmentation of the laughing zebra
 static char input_fname[] = "../data/zebra-gray-int8-4x";
 static int data_dims[2] = {7112, 5146}; // width=ncols, height=nrows
-char output_fname[] = "../data/processed-raw-int8-4x-cpu.dat";
-
+// char output_fname[] = "../data/processed-raw-int8-4x-cpu.dat";
+char output_fname[] = "../data/processed-raw-int8-4x-offload.dat";
 
 // see https://en.wikipedia.org/wiki/Sobel_operator
 
@@ -43,18 +43,32 @@ char output_fname[] = "../data/processed-raw-int8-4x-cpu.dat";
 
 // see https://en.wikipedia.org/wiki/Sobel_operator
 //
+#pragma omp declare target
 float
 sobel_filtered_pixel(float *s, int i, int j , int ncols, int nrows, float *gx, float *gy)
 {
 
    float t=0.0;
 
-   // ADD CODE HERE: add your code here for computing the sobel stencil computation at location (i,j)
-   // of input s, returning a float
+   if (i < 1 || i >= nrows - 1 || j < 1 || j >= ncols - 1)
+      return t;
+
+   float sx = 0.0f, sy = 0.0f;
+   for (int di = -1; di <= 1; di++)
+   {
+      for (int dj = -1; dj <= 1; dj++)
+      {
+         float v = s[(i + di) * ncols + (j + dj)];
+         int k = (di + 1) * 3 + (dj + 1);
+         sx += gx[k] * v;
+         sy += gy[k] * v;
+      }
+   }
+   t = sqrtf(sx * sx + sy * sy);
 
    return t;
 }
-
+#pragma omp end declare target
 //
 //  do_sobel_filtering() will iterate over all input image pixels and invoke the
 //  sobel_filtered_pixel() function at each (i,j) location of input to compute the
@@ -85,7 +99,7 @@ do_sobel_filtering(float *in, float *out, int ncols, int nrows)
 
 // ADD CODE HERE: you will need to add one more item to this line to map the "out" data array such that 
 // it is returned from the the device after the computation is complete. everything else here is input.
-#pragma omp target data map(to:in[0:nvals]) map(to:width) map(to:height) map(to:Gx[0:9]) map(to:Gy[0:9]) 
+#pragma omp target data map(to:in[0:nvals]) map(to:width) map(to:height) map(to:Gx[0:9]) map(to:Gy[0:9]) map(from:out[0:nvals])
    {
 
    // ADD CODE HERE: insert your code here that iterates over every (i,j) of input,  makes a call
@@ -94,7 +108,14 @@ do_sobel_filtering(float *in, float *out, int ncols, int nrows)
    // don't forget to include a  #pragma omp target teams parallel for around those loop(s).
    // You may also wish to consider additional clauses that might be appropriate here to increase parallelism 
    // if you are using nested loops.
-
+    #pragma omp target teams distribute parallel for collapse(2)
+          for (int i = 0; i < height; i++)
+          {
+             for (int j = 0; j < width; j++)
+             {
+                out[i * width + j] = sobel_filtered_pixel(in, i, j, width, height, Gx, Gy);
+             }
+          }
    } // pragma omp target data
 }
 
