@@ -172,11 +172,36 @@ main (int ac, char *av[])
    // now, induce memory movement to the GPU of the data in unified memory buffers
 
    int deviceID=0; // assume GPU#0, always. OK assumption for this program
-   cudaMemPrefetchAsync((void *)in_data_floats, nvalues*sizeof(float), deviceID);
-   cudaMemPrefetchAsync((void *)out_data_floats, nvalues*sizeof(float), deviceID);
-   cudaMemPrefetchAsync((void *)device_gx, sizeof(Gx)*sizeof(float), deviceID);
-   cudaMemPrefetchAsync((void *)device_gy, sizeof(Gy)*sizeof(float), deviceID);
+//    cudaMemPrefetchAsync((void *)in_data_floats, nvalues*sizeof(float), deviceID);
+//    cudaMemPrefetchAsync((void *)out_data_floats, nvalues*sizeof(float), deviceID);
+//    cudaMemPrefetchAsync((void *)device_gx, sizeof(Gx)*sizeof(float), deviceID);
+//    cudaMemPrefetchAsync((void *)device_gy, sizeof(Gy)*sizeof(float), deviceID);
+    cudaMemLocation location{};
+    location.type = cudaMemLocationTypeDevice;
+    location.id = deviceID;
+    cudaMemPrefetchAsync(
+        (void *)in_data_floats,
+        nvalues * sizeof(float),
+        location, 0, 0
+    );
 
+    cudaMemPrefetchAsync(
+        (void *)out_data_floats,
+        nvalues * sizeof(float),
+        location, 0, 0
+    );
+
+    cudaMemPrefetchAsync(
+        (void *)device_gx,
+        sizeof(Gx) * sizeof(float),
+        location, 0, 0
+    );
+
+    cudaMemPrefetchAsync(
+        (void *)device_gy,
+        sizeof(Gy) * sizeof(float),
+        location, 0, 0
+    );
     // set up to run the kernel
     int nBlocks=1, nThreadsPerBlock=256;
 
