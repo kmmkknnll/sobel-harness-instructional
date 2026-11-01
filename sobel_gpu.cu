@@ -177,13 +177,17 @@ main (int ac, char *av[])
    cudaMemPrefetchAsync((void *)device_gx, sizeof(Gx)*sizeof(float), deviceID);
    cudaMemPrefetchAsync((void *)device_gy, sizeof(Gy)*sizeof(float), deviceID);
 
-   // set up to run the kernel
-   int nBlocks=1, nThreadsPerBlock=256;
+    // set up to run the kernel
+    int nBlocks=1, nThreadsPerBlock=256;
 
-   // ADD CODE HERE: insert your code here to set a different number of thread blocks or # of threads per block
-   if (ac >= 2) nBlocks = atoi(av[1]);
-   if (ac >= 3) nThreadsPerBlock = atoi(av[2]);
-
+    // ADD CODE HERE: insert your code here to set a different number of thread blocks or # of threads per block
+    for (int a = 1; a < ac; a++)
+    {
+       if (strcmp(av[a], "-B") == 0 && a + 1 < ac)
+          nBlocks = atoi(av[++a]);
+       else if (strcmp(av[a], "-N") == 0 && a + 1 < ac)
+          nThreadsPerBlock = atoi(av[++a]);
+    }
 
    printf(" GPU configuration: %d blocks, %d threads per block \n", nBlocks, nThreadsPerBlock);
 
